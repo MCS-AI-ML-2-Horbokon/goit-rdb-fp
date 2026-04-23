@@ -6,12 +6,15 @@
 ```sql
 DROP SCHEMA IF EXISTS pandemic;
 
+-- Створюємо схему pandemic
 CREATE SCHEMA pandemic
     DEFAULT CHARACTER SET utf8mb4
     DEFAULT COLLATE utf8mb4_unicode_ci;
 
+-- Обираємо схему pandemic як схему за замовчуванням
 USE pandemic;
 
+-- Створюємо таблицю infectious_cases для зберігання даних
 CREATE TABLE infectious_cases (
     id INT NOT NULL AUTO_INCREMENT,
     entity VARCHAR(255) NOT NULL,
@@ -29,6 +32,9 @@ CREATE TABLE infectious_cases (
     PRIMARY KEY (id)
 );
 
+SET foreign_key_checks = 0;
+
+-- Імпортуємо дані з CSV-файлу; порожні рядки замінюємо на NULL
 LOAD DATA LOCAL INFILE '/Homework/goit-rdb-fp/infectious_cases.csv'
 INTO TABLE infectious_cases
 FIELDS TERMINATED BY ',' ENCLOSED BY '"'
@@ -46,6 +52,9 @@ SET
     number_smallpox     = NULLIF(@v8, ''),
     number_cholera      = NULLIF(@v9, '');
 
+SET foreign_key_checks = 1;
+
+-- Перевіряємо кількість завантажених записів
 SELECT COUNT(*) AS row_count FROM infectious_cases;
 ```
 
@@ -61,8 +70,10 @@ SELECT COUNT(*) AS row_count FROM infectious_cases;
 DROP TABLE IF EXISTS infectious_cases_normalized;
 DROP TABLE IF EXISTS entities;
 
+-- Перевіряємо кількість записів перед нормалізацією
 SELECT COUNT(*) FROM infectious_cases;
 
+-- Таблиця-довідник сутностей (entity + code)
 CREATE TABLE entities (
     id INT NOT NULL AUTO_INCREMENT,
     entity VARCHAR(255) NOT NULL,
@@ -71,12 +82,15 @@ CREATE TABLE entities (
     UNIQUE KEY uq_entity_code (entity, code)
 );
 
+-- Заповнюємо довідник унікальними комбінаціями entity та code
 INSERT INTO entities (entity, code)
 SELECT DISTINCT entity, code
 FROM infectious_cases;
 
+-- Перевіряємо кількість записів у довіднику
 SELECT COUNT(*) FROM entities;
 
+-- Нормалізована таблиця фактів; посилається на entities через entity_id
 CREATE TABLE IF NOT EXISTS infectious_cases_normalized (
     id INT NOT NULL AUTO_INCREMENT,
     entity_id INT NOT NULL,
@@ -94,19 +108,37 @@ CREATE TABLE IF NOT EXISTS infectious_cases_normalized (
     FOREIGN KEY (entity_id) REFERENCES entities(id)
 );
 
+-- Переносимо дані з оригінальної таблиці до нормалізованої
 INSERT INTO infectious_cases_normalized
 (
-    entity_id, year, number_yaws, polio_cases, cases_guinea_worm,
-    number_rabies, number_malaria, number_hiv, number_tuberculosis,
-    number_smallpox, number_cholera
+    entity_id,
+    year,
+    number_yaws,
+    polio_cases,
+    cases_guinea_worm,
+    number_rabies,
+    number_malaria,
+    number_hiv,
+    number_tuberculosis,
+    number_smallpox,
+    number_cholera
 )
 SELECT
-    e.id, ic.year, ic.number_yaws, ic.polio_cases, ic.cases_guinea_worm,
-    ic.number_rabies, ic.number_malaria, ic.number_hiv, ic.number_tuberculosis,
-    ic.number_smallpox, ic.number_cholera
+    e.id,
+    ic.year,
+    ic.number_yaws,
+    ic.polio_cases,
+    ic.cases_guinea_worm,
+    ic.number_rabies,
+    ic.number_malaria,
+    ic.number_hiv,
+    ic.number_tuberculosis,
+    ic.number_smallpox,
+    ic.number_cholera
 FROM infectious_cases ic
 JOIN entities e ON e.entity = ic.entity AND (e.code <=> ic.code);
 
+-- Перевіряємо кількість записів після нормалізації
 SELECT COUNT(*) FROM infectious_cases_normalized;
 ```
 
@@ -169,11 +201,13 @@ RETURNS INT
 DETERMINISTIC
 NO SQL
 BEGIN
+    -- Будуємо дату першого січня переданого року та рахуємо різницю з поточною датою
     RETURN TIMESTAMPDIFF(YEAR, MAKEDATE(input_year, 1), CURDATE());
 END //
 
 DELIMITER ;
 
+-- Використовуємо функцію на даних нормалізованої таблиці
 SELECT
     `year`,
     MAKEDATE(`year`, 1) AS `year_start`,
